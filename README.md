@@ -1,4 +1,4 @@
-# Perlego Flow V2
+# Perlego Flow downloader V2 (Chrome extension)
 
 A lightweight, memory-safe Chrome extension designed to automate and simplify content extraction from the Perlego e-reader. This tool helps users save books for offline reading. An active Perlego account is required.
 
