@@ -133,7 +133,7 @@ async function criarArquivoDownloadComConteudo() {
             }
         });
         const pagefinal = maiorNumero;
-	ultimoIndice = pagefinal
+        ultimoIndice = pagefinal
         console.log("Última página é: " + ultimoIndice);
         for (let i = lastProcessedIndex; i <= ultimoIndice; i++) {
             try {
@@ -214,7 +214,7 @@ async function putTodoConteudo(db, content) {
 
 async function openIndexedDB() {
     return new Promise((resolve, reject) => {
-        const dbOpenRequest = window.indexedDB.open('MeuBancoDeDados', 1);
+        const dbOpenRequest = window.indexedDB.open('FlowV2_DB', 1);
 
         dbOpenRequest.onupgradeneeded = function(event) {
             const db = event.target.result;
