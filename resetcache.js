@@ -1,9 +1,3 @@
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'resetAndStartCapture') {
-    resetarEIniciarCaptura();
-  }
-});
-
 async function openIndexedDB() {
     return new Promise((res, rej) => {
         const req = indexedDB.open('FlowV2_DB', 1);
@@ -27,3 +21,6 @@ async function resetarEIniciarCaptura() {
         console.error("Failed to reset:", error);
     }
 }
+
+// Execute immediately when injected by the background script!
+resetarEIniciarCaptura();
