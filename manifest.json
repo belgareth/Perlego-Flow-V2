@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Perlego Download",
-  "version": "3.0",
+  "name": "Perlego Flow V2",
+  "description": "Smart automated assistant for Perlego e-reader.",
+  "version": "2.0",
   "action": { 
     "default_popup": "popup.html"
   },
@@ -19,9 +20,8 @@
   },
   "permissions": [
     "unlimitedStorage",
-    "notifications",
     "activeTab", 
     "storage",
     "scripting"
   ]
-} 
+}
