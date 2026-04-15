@@ -9,12 +9,6 @@
   "background": { 
     "service_worker": "background.js"
   },
-  "content_scripts": [ 
-    {
-      "matches": ["https://ereader.perlego.com/*"], 
-      "js": ["content.js"] 
-    }
-  ],
   "icons": {
     "128": "logo.png"
   },
