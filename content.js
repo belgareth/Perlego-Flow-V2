@@ -1,9 +1,11 @@
+const currentBookId = window.location.pathname.split('/')[3] || "unknown_book";
+
 function enviarProgresso(progress){
     chrome.runtime.sendMessage({ type: 'progressUpdate', progress: progress });
 }
 
 function clicarEcapturarConteudoBruto(indice, pagefinal) {
-    const time = 2000
+    const time = 2000;
     return new Promise((resolve, reject) => {
         var elementoIndex = document.querySelector('[data-test-locator="Epub-ChapterRow-Index-'+indice+'"] [tabindex="0"]');
         if (elementoIndex) {
@@ -47,7 +49,7 @@ function clicarEcapturarConteudoBruto(indice, pagefinal) {
                         resolve(elementoCapturado.outerHTML+'<br>\n\n');
                     }
                     try {
-                        const num = indice+1
+                        const num = indice+1;
                         const elemento = document.evaluate("//div[@data-test-locator='Epub-ChapterRow-Page-"+num+"']/div", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                         if (elemento) {                                
                             let stopButton = document.createElement('button');
@@ -102,24 +104,27 @@ async function abrirbotao(){
     }
 }
 
-
 async function criarArquivoDownloadComConteudo() {
     let todoConteudoBruto = '';
     const elementos = document.querySelectorAll('[data-test-locator^="Epub-ChapterRow-"]');
     const db = await openIndexedDB(); 
 
+    // --- SMART CONTINUITY ---
+    const savedBookId = await getSavedBookId(db);
+    if (savedBookId && savedBookId !== currentBookId) {
+        console.log("New Book detected! Auto-clearing database...");
+        await resetAllContent(db);
+        await resetLastProcessedIndex(db);
+        await putSavedBookId(db, currentBookId);
+    } else if (!savedBookId) {
+        await putSavedBookId(db, currentBookId);
+    }
+
     if (elementos.length > 0) {
         let lastProcessedIndex = await getLastProcessedIndex(db) || 0;
-        console.log(lastProcessedIndex)
-        let todoConteudoBruto = await getTodoConteudo(db) || ''; 
-        //const ultimoElemento = elementos[elementos.length - 1];
-        //const ultimoIndicecont = ultimoElemento.getAttribute('data-test-locator').match(/\d+$/)[0];
-        //const result = document.evaluate("/html/body/div[1]/main/div[1]/div[2]/div[3]/div/text()[3]",document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue;
-        //const result2 = document.evaluate("/html/body/div[1]/main/div[1]/div[2]/div[4]/div/text()[3]",document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue;
-        //let text = '';
+        console.log(lastProcessedIndex);
+        todoConteudoBruto = await getTodoConteudo(db) || ''; 
 
-        //let node = result || result2;
-        //text = node.textContent.trim();
         var divs = document.querySelectorAll('div[data-test-locator]');
         var maiorNumero = -1;
         divs.forEach(function(elemento) {
@@ -133,7 +138,7 @@ async function criarArquivoDownloadComConteudo() {
             }
         });
         const pagefinal = maiorNumero;
-        ultimoIndice = pagefinal
+        ultimoIndice = pagefinal;
         console.log("Última página é: " + ultimoIndice);
         for (let i = lastProcessedIndex; i <= ultimoIndice; i++) {
             try {
@@ -173,11 +178,51 @@ async function criarArquivoDownloadComConteudo() {
 
         var link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = 'perlego.html';
+        link.download = `FlowV2_${currentBookId}_ePUB.html`;
 
         link.click();
-        resetarEIniciarCaptura()
+        
+        // Wipe clean after successful download
+        chrome.action.setBadgeText({ text: 'DONE' });
+        resetarEIniciarCaptura();
     }
+}
+
+// --- DATABASE FUNCTIONS ---
+
+async function openIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const dbOpenRequest = window.indexedDB.open('FlowV2_DB', 1);
+
+        dbOpenRequest.onupgradeneeded = function(event) {
+            const db = event.target.result;
+            db.createObjectStore('conteudo', { autoIncrement: true });
+        };
+
+        dbOpenRequest.onsuccess = function(event) {
+            resolve(event.target.result);
+        };
+
+        dbOpenRequest.onerror = function(event) {
+            reject(event.error);
+        };
+    });
+}
+
+async function getSavedBookId(db) {
+    return new Promise((resolve) => {
+        const req = db.transaction(['conteudo'], 'readonly').objectStore('conteudo').get('savedBookId');
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => resolve(null); // Safely handle if missing
+    });
+}
+
+async function putSavedBookId(db, id) {
+    return new Promise((resolve) => {
+        const tx = db.transaction(['conteudo'], 'readwrite');
+        tx.objectStore('conteudo').put(id, 'savedBookId');
+        tx.oncomplete = () => resolve();
+    });
 }
 
 async function getTodoConteudo(db) {
@@ -207,25 +252,6 @@ async function putTodoConteudo(db, content) {
         };
 
         request.onerror = function(event) {
-            reject(event.error);
-        };
-    });
-}
-
-async function openIndexedDB() {
-    return new Promise((resolve, reject) => {
-        const dbOpenRequest = window.indexedDB.open('FlowV2_DB', 1);
-
-        dbOpenRequest.onupgradeneeded = function(event) {
-            const db = event.target.result;
-            db.createObjectStore('conteudo', { autoIncrement: true });
-        };
-
-        dbOpenRequest.onsuccess = function(event) {
-            resolve(event.target.result);
-        };
-
-        dbOpenRequest.onerror = function(event) {
             reject(event.error);
         };
     });
@@ -267,7 +293,6 @@ async function resetLastProcessedIndex(db) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(['conteudo'], 'readwrite');
         const store = transaction.objectStore('conteudo');
-
         const deleteRequest = store.delete('lastProcessedIndex');
 
         deleteRequest.onsuccess = function (event) {
@@ -302,4 +327,4 @@ async function resetarEIniciarCaptura() {
     await resetLastProcessedIndex(db);
 }
 
-abrirbotao()
+abrirbotao();
