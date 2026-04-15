@@ -1,30 +1,32 @@
-function updateProgressBar(progress) {
-  const progressBar = document.getElementById('progress');
-  if(progressBar) progressBar.style.width = progress + '%';
-}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Perlego Flow V2</title>
+  <style>
+    body { width: 280px; padding: 15px; font-family: Arial, sans-serif; background: #1e1e2e; color: #cdd6f4; }
+    h3 { margin-top: 0; text-align: center; }
+    button { 
+      display: block; width: 100%; margin-bottom: 10px; padding: 12px; 
+      cursor: pointer; font-weight: bold; border: none; border-radius: 6px;
+    }
+    #executar { background: #89b4fa; color: #11111b; }
+    #manual { background: #a6e3a1; color: #11111b; }
+    #clear { background: #f38ba8; color: #11111b; margin-top: 20px; }
+    #progressBar { display: none; width: 100%; background: #45475a; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 15px; }
+    #progress { width: 0%; background: #a6e3a1; height: 100%; transition: width 0.3s; }
+  </style>
+</head>
+<body>
+  <h3>Perlego Flow V2</h3>
+  <button id="executar">⬇️ ePUB Auto-Download</button>
+  <button id="manual">✨ PDF Smart Download</button>
+  <button id="clear">⚠ Force Reset Database</button>
+  
+  <div id="progressBar">
+    <div id="progress"></div>
+  </div>
 
-function showProgressBar() {
-  const progressBar = document.getElementById('progressBar');
-  if(progressBar) progressBar.style.display = 'block';
-}
-
-chrome.runtime.onMessage.addListener((message) => { 
-  if (message.type === 'progressUpdate') {
-    showProgressBar(); 
-    updateProgressBar(message.progress);
-  }
-});
-
-document.getElementById('executar').addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'startScript' });
-  showProgressBar();
-});
-
-document.getElementById('manual').addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'startScriptmanual' });
-  showProgressBar();
-});
-
-document.getElementById('clear').addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'resetAndStartCapture' });
-});
+  <script src="popup.js"></script> 
+</body>
+</html>
