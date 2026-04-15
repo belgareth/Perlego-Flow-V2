@@ -1,48 +1,29 @@
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'executeResetarEIniciarCaptura') {
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'resetAndStartCapture') {
     resetarEIniciarCaptura();
-	console.log('ok')
   }
 });
 
-async function resetLastProcessedIndex(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readwrite');
-        const store = transaction.objectStore('conteudo');
-
-        const deleteRequest = store.delete('lastProcessedIndex');
-
-        deleteRequest.onsuccess = function (event) {
-            resolve();
-        };
-
-        deleteRequest.onerror = function (event) {
-            reject(event.error);
-        };
-    });
-}
-
-async function resetAllContent(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readwrite');
-        const store = transaction.objectStore('conteudo');
-        const request = store.clear();
-
-        request.onsuccess = function(event) {
-            resolve();
-        };
-
-        request.onerror = function(event) {
-            reject(event.error);
-        };
+async function openIndexedDB() {
+    return new Promise((res, rej) => {
+        const req = indexedDB.open('FlowV2_DB', 1);
+        req.onupgradeneeded = (e) => e.target.result.createObjectStore('conteudo');
+        req.onsuccess = (e) => res(e.target.result);
+        req.onerror = (e) => rej(e.error);
     });
 }
 
 async function resetarEIniciarCaptura() {
-    const db = await openIndexedDB(); 
-    await resetAllContent(db); 
-    await resetLastProcessedIndex(db); 
-	alert('Continuity clean successfully!');
+    try {
+        const db = await openIndexedDB(); 
+        await new Promise((res, rej) => {
+            const tx = db.transaction(['conteudo'], 'readwrite');
+            const req = tx.objectStore('conteudo').clear();
+            req.onsuccess = res;
+            req.onerror = () => rej(req.error);
+        });
+        alert('V2 Continuity cleaned successfully! You are ready to start a new book.');
+    } catch (error) {
+        console.error("Failed to reset:", error);
+    }
 }
-
-resetarEIniciarCaptura();
