@@ -4,7 +4,11 @@
     
     // V2 Settings
     const currentBookId = window.location.pathname.split('/')[3] || "unknown_book";
-    let CHUNK_SIZE = 100; // Default, recalculated based on book size
+    let CHUNK_SIZE = 50; // Safe chunk limit to prevent RAM crashes
+
+    function getJitterDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1) + min);
+    }
 
     function enviarProgresso(progress) {
         chrome.runtime.sendMessage({ type: 'progressUpdate', progress: progress });
@@ -15,28 +19,29 @@
         if (paginationEl) {
             const matches = paginationEl.textContent.match(/\d+/g);
             if (matches) totalPages = parseInt(matches[0]);
-
-            // SMART CHUNKING ALGORITHM
-            if (totalPages <= 150) {
-                CHUNK_SIZE = 150; 
-            } else if (totalPages <= 500) {
-                CHUNK_SIZE = 100; 
-            } else if (totalPages <= 1500) {
-                CHUNK_SIZE = 150; 
-            } else {
-                CHUNK_SIZE = 200; 
-            }
-            console.log(`Smart Chunking Active: Saving every ${CHUNK_SIZE} pages.`);
         }
     }
 
+    // --- BULLETPROOF XML-SAFE UI ---
     function exibirStatusUI() {
         if (document.getElementById('automation-status')) return;
+
         const msg = document.createElement('div');
         msg.id = 'automation-status';
-        msg.style = "position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:15px; background:#1e1e2e; color:#a6e3a1; border:2px solid #a6e3a1; z-index:999999; font-family:sans-serif; box-shadow:0 4px 15px rgba(0,0,0,0.4); border-radius:8px;";
-        msg.innerHTML = `<div id="status-text">Starting V2 Flow...</div>
-                         <button id="stop-btn" style="margin-top:10px; cursor:pointer; background:#f38ba8; color:#11111b; font-weight:bold; border:none; padding:8px 15px; border-radius:4px; width:100%;">Stop & Save Chunk</button>`;
+        msg.setAttribute('style', "position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:15px; background:white; border:2px solid #4caf50; z-index:999999; font-family:sans-serif; box-shadow:0 4px 15px rgba(0,0,0,0.2); border-radius:8px; text-align:center;");
+
+        const statusText = document.createElement('div');
+        statusText.id = 'status-text';
+        statusText.textContent = 'Starting Automation...';
+        statusText.setAttribute('style', 'color:black; font-weight:bold; margin-bottom:10px;');
+        msg.appendChild(statusText);
+
+        const stopBtn = document.createElement('button');
+        stopBtn.id = 'stop-btn';
+        stopBtn.setAttribute('style', "cursor:pointer; background:#f44336; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; width:100%;");
+        stopBtn.textContent = 'Stop and Save Chunk'; // Removed the '&' to protect XML parsing
+        msg.appendChild(stopBtn);
+
         document.documentElement.appendChild(msg);
 
         document.getElementById('stop-btn').onclick = () => {
@@ -46,8 +51,11 @@
     }
 
     async function downloadCurrentChunk(isFinal = false) {
-        const msg = document.getElementById('automation-status');
-        if (msg) document.getElementById('status-text').innerHTML = `<b>Packaging Part...</b>`;
+        const statusText = document.getElementById('status-text');
+        if (statusText) {
+            statusText.textContent = 'Packaging Chunk...';
+            statusText.style.color = '#e67e22';
+        }
 
         try {
             const db = await openIndexedDB();
@@ -56,29 +64,15 @@
             
             if (pageKeys.length === 0) return;
 
-            const firstPage = parseInt(pageKeys[0].replace('page_', ''), 10);
-            const lastPage = parseInt(pageKeys[pageKeys.length - 1].replace('page_', ''), 10);
-
-            // ZERO-VIEWPORT PRINT CSS BAKED IN
             let finalHTML = [
-                "<!DOCTYPE html><html><head><title>Perlego Flow Export</title>",
+                "<!DOCTYPE html><html><head><title>Perlego Flow V2 Export</title>",
                 "<style>",
-                "  /* Screen Preview (Dark Mode) */",
                 "  body { background:#1e1e2e; margin:0; padding:20px; text-align:center; }",
                 "  img { max-width:100%; height:auto; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.5); }",
-                
-                "  /* Zero-Viewport PDF Print */",
                 "  @media print {",
                 "    @page { margin: 0; }", 
                 "    html, body { margin: 0; padding: 0; height: 100%; background: white; }",
-                "    img { ",
-                "      display: block;",
-                "      margin: 0 auto;", 
-                "      max-width: 100%; ", 
-                "      max-height: 100%; ", 
-                "      page-break-after: always;", 
-                "      page-break-inside: avoid;", 
-                "    }",
+                "    img { display: block; margin: 0 auto; max-width: 100%; max-height: 100%; page-break-after: always; page-break-inside: avoid; }",
                 "  }",
                 "</style></head><body>"
             ];
@@ -89,6 +83,9 @@
             }
             finalHTML.push("</body></html>");
             
+            const firstPage = parseInt(pageKeys[0].replace('page_', ''), 10);
+            const lastPage = parseInt(pageKeys[pageKeys.length - 1].replace('page_', ''), 10);
+
             const blob = new Blob([finalHTML.join('\n')], { type: 'text/html' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
@@ -102,10 +99,17 @@
             const store = tx.objectStore('conteudo');
             for (const k of pageKeys) store.delete(k);
             
-            if (msg && isFinal) document.getElementById('status-text').innerHTML = `<b style="color:white;">Flow Complete!</b>`;
+            if (statusText && isFinal) {
+                statusText.textContent = 'Flow Complete! Check downloads.';
+                statusText.style.color = '#4caf50';
+            }
             
         } catch (e) {
-            console.error("Error saving part:", e);
+            console.error("Error saving file:", e);
+            if (statusText) {
+                statusText.textContent = 'Save Failed. Check F12.';
+                statusText.style.color = 'red';
+            }
         }
     }
 
@@ -122,14 +126,14 @@
 
         if (!html) {
             if (statusLabel) statusLabel.textContent = `Loading Page ${currentPage}...`;
-            setTimeout(() => processLoop(currentPage), 3000);
+            setTimeout(() => processLoop(currentPage), getJitterDelay(2500, 4000));
         } else {
             const key = `page_${currentPage.toString().padStart(5, '0')}`;
             await putTodoConteudo(db, key, html);
             await putLastProcessedIndex(db, currentPage);
             
             if (totalPages > 0) enviarProgresso(Math.floor((currentPage / totalPages) * 100));
-            if (statusLabel) statusLabel.textContent = `Flow V2: Capturing ${currentPage} / ${totalPages || '?'}`;
+            if (statusLabel) statusLabel.textContent = `Capturing ${currentPage} / ${totalPages || '?'}`;
 
             if (currentPage % CHUNK_SIZE === 0) {
                 await downloadCurrentChunk(false);
@@ -138,7 +142,7 @@
             if (totalPages > 0 && currentPage >= totalPages) {
                 await downloadCurrentChunk(true); 
             } else {
-                setTimeout(() => processLoop(currentPage + 1), 1500);
+                setTimeout(() => processLoop(currentPage + 1), getJitterDelay(1000, 2500));
             }
         }
     }
@@ -162,9 +166,11 @@
         let hasPlaceholder = content.querySelector(".pdfplaceholder");
 
         if (hasPlaceholder || !imagesLoaded) return null; 
-        return content.innerHTML + '<br>\n';
+        // Ensure standard breaks instead of unclosed tags to keep XML happy
+        return content.innerHTML + '<br/>\n';
     }
 
+    // --- DB Setup ---
     async function openIndexedDB() {
         return new Promise((res) => {
             const req = indexedDB.open('FlowV2_DB', 1);
