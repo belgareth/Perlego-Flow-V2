@@ -182,8 +182,8 @@ async function criarArquivoDownloadComConteudo() {
 
         link.click();
         
-        // Wipe clean after successful download
-        chrome.action.setBadgeText({ text: 'DONE' });
+        // BUG FIX: Removed chrome.action.setBadgeText and replaced with safe messaging
+        chrome.runtime.sendMessage({ type: 'progressUpdate', progress: '100' });
         resetarEIniciarCaptura();
     }
 }
