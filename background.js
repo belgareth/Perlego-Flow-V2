@@ -1,13 +1,5 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  
-  // NEW: Live Toolbar Badge updater!
-  if (message.type === 'progressUpdate') {
-    chrome.action.setBadgeText({ text: `${message.progress}%` });
-    chrome.action.setBadgeBackgroundColor({ color: '#a6e3a1' });
-  } 
-  
-  else if (message.type === 'startScript') {
-    chrome.action.setBadgeText({ text: '...' }); // Show it's thinking
+  if (message.type === 'startScript') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const id = tabs[0].id;
       chrome.scripting.executeScript({
@@ -15,10 +7,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         files: ['content.js']
       });
     }); 
-  } 
-  
-  else if (message.type === 'startScriptmanual') {
-    chrome.action.setBadgeText({ text: '...' }); // Show it's thinking
+  } else if (message.type === 'startScriptmanual') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const id = tabs[0].id;
       chrome.scripting.executeScript({
@@ -26,10 +15,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         files: ['contentmanual.js']
       });
     });
-  } 
-  
-  else if (message.type === 'resetAndStartCapture') {
-    chrome.action.setBadgeText({ text: '' }); // Clear badge on reset
+  } else if (message.type === 'startScriptmanualfull') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const id = tabs[0].id;
+      chrome.scripting.executeScript({
+        target: { tabId: id, allFrames: true },
+        files: ['contentmanualfull.js']
+      });
+    });
+  } else if (message.type === 'resetAndStartCapture') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const id = tabs[0].id;
       chrome.scripting.executeScript({
