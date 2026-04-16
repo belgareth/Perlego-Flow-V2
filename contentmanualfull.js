@@ -6,6 +6,10 @@
     const currentBookId = window.location.pathname.split('/')[3] || "unknown_book";
     let CHUNK_SIZE = 999999; // Set extremely high to prevent chunking
 
+    function getJitterDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1) + min);
+    }
+
     function enviarProgresso(progress) {
         chrome.runtime.sendMessage({ type: 'progressUpdate', progress: progress });
     }
@@ -19,13 +23,26 @@
         }
     }
 
+    // --- BULLETPROOF XML-SAFE UI (Dark Mode Theme) ---
     function exibirStatusUI() {
         if (document.getElementById('automation-status')) return;
+
         const msg = document.createElement('div');
         msg.id = 'automation-status';
-        msg.style = "position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:15px; background:#1e1e2e; color:#a6e3a1; border:2px solid #a6e3a1; z-index:999999; font-family:sans-serif; box-shadow:0 4px 15px rgba(0,0,0,0.4); border-radius:8px;";
-        msg.innerHTML = `<div id="status-text">Starting Brute Force Flow...</div>
-                         <button id="stop-btn" style="margin-top:10px; cursor:pointer; background:#f38ba8; color:#11111b; font-weight:bold; border:none; padding:8px 15px; border-radius:4px; width:100%;">Stop & Save Now</button>`;
+        msg.setAttribute('style', "position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:15px; background:#1e1e2e; border:2px solid #a6e3a1; z-index:999999; font-family:sans-serif; box-shadow:0 4px 15px rgba(0,0,0,0.4); border-radius:8px; text-align:center;");
+
+        const statusText = document.createElement('div');
+        statusText.id = 'status-text';
+        statusText.textContent = 'Starting Brute Force Flow...';
+        statusText.setAttribute('style', 'color:#a6e3a1; font-weight:bold; margin-bottom:10px;');
+        msg.appendChild(statusText);
+
+        const stopBtn = document.createElement('button');
+        stopBtn.id = 'stop-btn';
+        stopBtn.setAttribute('style', "cursor:pointer; background:#f38ba8; color:#11111b; font-weight:bold; border:none; padding:8px 15px; border-radius:4px; width:100%;");
+        stopBtn.textContent = 'Stop and Save Now'; 
+        msg.appendChild(stopBtn);
+
         document.documentElement.appendChild(msg);
 
         document.getElementById('stop-btn').onclick = () => {
@@ -35,8 +52,11 @@
     }
 
     async function downloadCurrentChunk(isFinal = false) {
-        const msg = document.getElementById('automation-status');
-        if (msg) document.getElementById('status-text').innerHTML = `<b>Packaging Full File...</b>`;
+        const statusText = document.getElementById('status-text');
+        if (statusText) {
+            statusText.textContent = 'Packaging Full File...';
+            statusText.style.color = '#f9e2af';
+        }
 
         try {
             const db = await openIndexedDB();
@@ -57,14 +77,7 @@
                 "  @media print {",
                 "    @page { margin: 0; }", 
                 "    html, body { margin: 0; padding: 0; height: 100%; background: white; }",
-                "    img { ",
-                "      display: block;",
-                "      margin: 0 auto;", 
-                "      max-width: 100%; ", 
-                "      max-height: 100%; ", 
-                "      page-break-after: always;", 
-                "      page-break-inside: avoid;", 
-                "    }",
+                "    img { display: block; margin: 0 auto; max-width: 100%; max-height: 100%; page-break-after: always; page-break-inside: avoid; }",
                 "  }",
                 "</style></head><body>"
             ];
@@ -88,10 +101,17 @@
             const store = tx.objectStore('conteudo');
             for (const k of pageKeys) store.delete(k);
             
-            if (msg && isFinal) document.getElementById('status-text').innerHTML = `<b style="color:white;">Flow Complete!</b>`;
+            if (statusText && isFinal) {
+                statusText.textContent = 'Flow Complete! Check downloads.';
+                statusText.style.color = '#a6e3a1';
+            }
             
         } catch (e) {
             console.error("Error saving file:", e);
+            if (statusText) {
+                statusText.textContent = 'Save Failed. Check F12.';
+                statusText.style.color = '#f38ba8';
+            }
         }
     }
 
@@ -108,7 +128,7 @@
 
         if (!html) {
             if (statusLabel) statusLabel.textContent = `Loading Page ${currentPage}...`;
-            setTimeout(() => processLoop(currentPage), 3000);
+            setTimeout(() => processLoop(currentPage), getJitterDelay(2500, 4000));
         } else {
             const key = `page_${currentPage.toString().padStart(5, '0')}`;
             await putTodoConteudo(db, key, html);
@@ -124,7 +144,7 @@
             if (totalPages > 0 && currentPage >= totalPages) {
                 await downloadCurrentChunk(true); 
             } else {
-                setTimeout(() => processLoop(currentPage + 1), 1500);
+                setTimeout(() => processLoop(currentPage + 1), getJitterDelay(1000, 2500));
             }
         }
     }
@@ -148,7 +168,7 @@
         let hasPlaceholder = content.querySelector(".pdfplaceholder");
 
         if (hasPlaceholder || !imagesLoaded) return null; 
-        return content.innerHTML + '<br>\n';
+        return content.innerHTML + '<br/>\n';
     }
 
     async function openIndexedDB() {
