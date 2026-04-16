@@ -138,7 +138,7 @@ async function criarArquivoDownloadComConteudo() {
             }
         });
         const pagefinal = maiorNumero;
-        ultimoIndice = pagefinal;
+        let ultimoIndice = pagefinal;
         console.log("Última página é: " + ultimoIndice);
         for (let i = lastProcessedIndex; i <= ultimoIndice; i++) {
             try {
@@ -182,149 +182,74 @@ async function criarArquivoDownloadComConteudo() {
 
         link.click();
         
-        // BUG FIX: Removed chrome.action.setBadgeText and replaced with safe messaging
-        chrome.runtime.sendMessage({ type: 'progressUpdate', progress: '100' });
-        resetarEIniciarCaptura();
+        // Use messaging instead of direct action API access
+        enviarProgresso('DONE');
+        await resetarEIniciarCaptura(db);
     }
 }
 
-// --- DATABASE FUNCTIONS ---
-
+// --- DB Boilerplate ---
 async function openIndexedDB() {
-    return new Promise((resolve, reject) => {
-        const dbOpenRequest = window.indexedDB.open('FlowV2_DB', 1);
-
-        dbOpenRequest.onupgradeneeded = function(event) {
-            const db = event.target.result;
-            db.createObjectStore('conteudo', { autoIncrement: true });
-        };
-
-        dbOpenRequest.onsuccess = function(event) {
-            resolve(event.target.result);
-        };
-
-        dbOpenRequest.onerror = function(event) {
-            reject(event.error);
-        };
+    return new Promise((res) => {
+        const req = indexedDB.open('FlowV2_ePUB_DB', 1);
+        req.onupgradeneeded = (e) => e.target.result.createObjectStore('conteudo');
+        req.onsuccess = (e) => res(e.target.result);
     });
 }
 
 async function getSavedBookId(db) {
-    return new Promise((resolve) => {
+    return new Promise((res) => {
         const req = db.transaction(['conteudo'], 'readonly').objectStore('conteudo').get('savedBookId');
-        req.onsuccess = (e) => resolve(e.target.result);
-        req.onerror = () => resolve(null); // Safely handle if missing
+        req.onsuccess = (e) => res(e.target.result);
     });
 }
 
 async function putSavedBookId(db, id) {
-    return new Promise((resolve) => {
+    const tx = db.transaction(['conteudo'], 'readwrite');
+    tx.objectStore('conteudo').put(id, 'savedBookId');
+}
+
+async function resetAllContent(db) {
+    return new Promise((res) => {
         const tx = db.transaction(['conteudo'], 'readwrite');
-        tx.objectStore('conteudo').put(id, 'savedBookId');
-        tx.oncomplete = () => resolve();
-    });
-}
-
-async function getTodoConteudo(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readonly');
-        const store = transaction.objectStore('conteudo');
-        const request = store.get('todoConteudo');
-
-        request.onsuccess = function(event) {
-            resolve(event.target.result);
-        };
-
-        request.onerror = function(event) {
-            reject(event.error);
-        };
-    });
-}
-
-async function putTodoConteudo(db, content) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readwrite');
-        const store = transaction.objectStore('conteudo');
-        const request = store.put(content, 'todoConteudo');
-
-        request.onsuccess = function(event) {
-            resolve();
-        };
-
-        request.onerror = function(event) {
-            reject(event.error);
-        };
-    });
-}
-
-async function getLastProcessedIndex(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readonly');
-        const store = transaction.objectStore('conteudo');
-        const lastIndexRequest = store.get('lastProcessedIndex');
-
-        lastIndexRequest.onsuccess = function(event) {
-            resolve(event.target.result || 0);
-        };
-
-        lastIndexRequest.onerror = function(event) {
-            reject(event.error);
-        };
-    });
-}
-
-async function putLastProcessedIndex(db, index) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readwrite');
-        const store = transaction.objectStore('conteudo');
-        const putRequest = store.put(index, 'lastProcessedIndex');
-
-        putRequest.onsuccess = function(event) {
-            resolve();
-        };
-
-        putRequest.onerror = function(event) {
-            reject(event.error);
-        };
+        tx.objectStore('conteudo').clear();
+        tx.oncomplete = () => res();
     });
 }
 
 async function resetLastProcessedIndex(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readwrite');
-        const store = transaction.objectStore('conteudo');
-        const deleteRequest = store.delete('lastProcessedIndex');
+    const tx = db.transaction(['conteudo'], 'readwrite');
+    tx.objectStore('conteudo').put(0, 'lastProcessedIndex');
+}
 
-        deleteRequest.onsuccess = function (event) {
-            resolve();
-        };
-
-        deleteRequest.onerror = function (event) {
-            reject(event.error);
-        };
+async function getLastProcessedIndex(db) {
+    return new Promise((res) => {
+        const req = db.transaction(['conteudo'], 'readonly').objectStore('conteudo').get('lastProcessedIndex');
+        req.onsuccess = (e) => res(e.target.result || 0);
     });
 }
 
-async function resetAllContent(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['conteudo'], 'readwrite');
-        const store = transaction.objectStore('conteudo');
-        const request = store.clear();
+async function putLastProcessedIndex(db, index) {
+    const tx = db.transaction(['conteudo'], 'readwrite');
+    tx.objectStore('conteudo').put(index, 'lastProcessedIndex');
+}
 
-        request.onsuccess = function(event) {
-            resolve();
-        };
-
-        request.onerror = function(event) {
-            reject(event.error);
-        };
+async function getTodoConteudo(db) {
+    return new Promise((res) => {
+        const req = db.transaction(['conteudo'], 'readonly').objectStore('conteudo').get('todoConteudo');
+        req.onsuccess = (e) => res(e.target.result);
     });
 }
 
-async function resetarEIniciarCaptura() {
-    const db = await openIndexedDB(); 
+async function putTodoConteudo(db, content) {
+    const tx = db.transaction(['conteudo'], 'readwrite');
+    tx.objectStore('conteudo').put(content, 'todoConteudo');
+}
+
+async function resetarEIniciarCaptura(db) {
     await resetAllContent(db);
-    await resetLastProcessedIndex(db);
+    console.log("Database wiped after successful download.");
 }
 
+// Start the sequence
 abrirbotao();
